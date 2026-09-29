@@ -1,7 +1,8 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { IonContent, IonHeader, IonTitle, IonToolbar } from '@ionic/angular';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { Motion } from '@capacitor/motion';
+
+import { Accelerometer } from '../accelerometer/accelerometer';
 
 /**
  * Rolls a 1-6 dice when the device is shaken along the X axis.
@@ -34,11 +35,11 @@ export class HomePage implements OnInit, OnDestroy {
   private accelListener: PluginListenerHandle | undefined;
 
   async ngOnInit() {
-    // `Motion.addListener` rejects where no accelerometer is exposed (an emulator, a
-    // desktop browser). Swallowing that keeps the page usable and stops the rejection
-    // from surfacing as an unhandled promise.
+    // `addListener` rejects where no accelerometer is exposed (an emulator, a desktop
+    // browser). Swallowing that keeps the page usable and stops the rejection from
+    // surfacing as an unhandled promise.
     try {
-      this.accelListener = await Motion.addListener('accel', (event) => {
+      this.accelListener = await Accelerometer.addListener('accel', (event) => {
         const accel = event.accelerationIncludingGravity ?? event.acceleration;
         if (!accel) return;
 

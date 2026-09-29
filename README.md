@@ -9,6 +9,32 @@ along the X axis.
 - The accelerometer listener is removed in `ngOnDestroy`, so revisiting the page
   does not stack up listeners.
 
+## Why there is a local plugin instead of `@capacitor/motion`
+
+`@capacitor/motion` ships **no Android implementation**. Its published package
+contains only `dist/` — no `android/` directory — unlike `@capacitor/geolocation`,
+which ships Kotlin sources. It is a web-only plugin that forwards the browser
+`devicemotion` event, and the Android WebView never fires that for the
+accelerometer. Installing it and calling `Motion.addListener('accel', …)` succeeds,
+returns a handle, and then silently never emits an event: the app runs, the dice
+stays on 0, and nothing in the console explains why.
+
+So the accelerometer is implemented locally instead:
+
+| Layer | File | Role |
+|---|---|---|
+| Native | `android/app/src/main/java/io/ionic/motiondice/AccelerometerPlugin.java` | `@CapacitorPlugin(name = "Accelerometer")` over `SensorManager` / `TYPE_ACCELEROMETER` at `SENSOR_DELAY_GAME` |
+| Bridge | `src/app/accelerometer/accelerometer.ts` | `registerPlugin<AccelerometerPlugin>('Accelerometer')` + the event types |
+| Web fallback | `src/app/accelerometer/accelerometer.web.ts` | forwards `devicemotion` so `ng serve` and tests still work in a browser |
+
+The plugin is compiled into the app module (no separate Gradle module), so it
+needs no extra build wiring. Its payload deliberately matches `@capacitor/motion`
+— `{ accelerationIncludingGravity: { x, y, z } }` in m/s² — so page code reads the
+same either way, and swapping back would be a one-line import change.
+
+`addListener` rejects immediately when no accelerometer exists, and
+`handleOnDestroy` unregisters the sensor so it cannot outlive the WebView.
+
 ## Prerequisites
 
 | Tool | Version |
@@ -97,12 +123,22 @@ that only has `android-35`.
 - Shake the phone side to side along the X axis firmly. The number stays put while you
   move, then rolls ~0.8 s after you stop.
 - Holding the phone still, or small tremors, will not change the number.
-- An emulator has no accelerometer, so the face stays at 0 — test on the device.
+- An emulator has no accelerometer, so `addListener` rejects and the face stays at 0.
+  `uses-feature android.hardware.sensor.accelerometer` is marked `required`, so the app
+  will not install on one. Test on a real device:
+  ```bash
+  adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+  ```
+- Threshold is `MAJOR_MOVE_THRESHOLD = 3` m/s² in `home.page.ts`. If it feels too stiff
+  or too twitchy in your hand, that is the number to change.
 
 ## Project layout
 
 ```
-src/app/home/home.page.ts    # motion listener, threshold, 800 ms debounce, rollDice()
-src/app/home/home.page.html  # centred square showing the dice number
-android/                     # native Android project (Capacitor) — sync before building
+src/app/accelerometer/         # Capacitor bridge to the native plugin
+android/app/src/main/java/io/ionic/motiondice/AccelerometerPlugin.java
+                               # native accelerometer (SensorManager)
+src/app/home/home.page.ts      # shake threshold, 800 ms debounce, rollDice()
+src/app/home/home.page.html    # centred square showing the dice number
+android/                       # native Android project (Capacitor) — sync before building
 ```

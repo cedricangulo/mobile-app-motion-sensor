@@ -38,4 +38,11 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Reading the accelerometer needs no permission. This declares the requirement so
+         the Play Store filters out devices without one, and so the emulator (which has
+         no accelerometer) is an obviously unsupported target. -->
+    <uses-feature
+        android:name="android.hardware.sensor.accelerometer"
+        android:required="true" />
 </manifest>

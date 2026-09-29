@@ -21,7 +21,6 @@
     "@angular/router": "22.1.7",
     "@capacitor/android": "7.4.3",
     "@capacitor/core": "7.4.3",
-    "@capacitor/motion": "^7",
     "@ionic/angular": "^9.0.0",
     "ionicons": "^8.1.0",
     "rxjs": "~7.8.0",
