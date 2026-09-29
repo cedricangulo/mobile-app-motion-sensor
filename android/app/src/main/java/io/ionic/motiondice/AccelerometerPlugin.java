@@ -23,6 +23,19 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *
  * <p>Readings are in m/s^2 and include gravity, matching
  * {@link SensorManager#TYPE_ACCELEROMETER}.
+ *
+ * <p><b>Two things are required for this plugin to be callable, and both fail silently:</b>
+ * <ol>
+ *   <li>It must be registered in {@code MainActivity} via
+ *       {@code registerPlugin(AccelerometerPlugin.class)}, because the bridge only
+ *       auto-registers npm plugins listed in {@code capacitor.plugins.json}.</li>
+ *   <li>Every <em>overridden</em> {@code @PluginMethod} must be re-annotated.
+ *       {@code PluginHandle.indexMethods()} reads
+ *       {@code method.getAnnotation(PluginMethod.class)}, and Java does not inherit
+ *       method annotations across an override — so an override without the annotation
+ *       silently disappears from {@code PluginHeaders}, and the JS proxy then throws
+ *       {@code "Accelerometer.addListener()" is not implemented on android}.</li>
+ * </ol>
  */
 @CapacitorPlugin(name = "Accelerometer")
 public class AccelerometerPlugin extends Plugin implements SensorEventListener {
@@ -56,6 +69,7 @@ public class AccelerometerPlugin extends Plugin implements SensorEventListener {
         }
     }
 
+    @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     @Override
     public void addListener(PluginCall call) {
         if (accelerometer == null) {
@@ -69,6 +83,7 @@ public class AccelerometerPlugin extends Plugin implements SensorEventListener {
         startListening();
     }
 
+    @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     @Override
     public void removeListener(PluginCall call) {
         super.removeListener(call);
@@ -79,6 +94,7 @@ public class AccelerometerPlugin extends Plugin implements SensorEventListener {
         }
     }
 
+    @PluginMethod(returnType = PluginMethod.RETURN_PROMISE)
     @Override
     public void removeAllListeners(PluginCall call) {
         super.removeAllListeners(call);

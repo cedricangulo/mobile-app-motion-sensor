@@ -1,3 +1,4 @@
+import { InjectionToken } from '@angular/core';
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 /**
@@ -39,4 +40,17 @@ export interface AccelerometerPlugin {
  */
 export const Accelerometer = registerPlugin<AccelerometerPlugin>('Accelerometer', {
   web: () => import('./accelerometer.web').then((m) => new m.AccelerometerWeb()),
+});
+
+/**
+ * Injection token for {@link Accelerometer}.
+ *
+ * `registerPlugin` returns a Proxy, so its members cannot be replaced in place, and the
+ * Angular unit-test builder rejects `vi.mock` for relative imports. Injecting the plugin
+ * through the token lets tests supply a stub via `{ provide: ACCELEROMETER, useValue }`
+ * while the app keeps the default factory.
+ */
+export const ACCELEROMETER = new InjectionToken<AccelerometerPlugin>('Accelerometer', {
+  providedIn: 'root',
+  factory: () => Accelerometer,
 });

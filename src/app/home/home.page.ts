@@ -1,15 +1,24 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { IonContent, IonHeader, IonTitle, IonToolbar } from '@ionic/angular';
 import type { PluginListenerHandle } from '@capacitor/core';
 
-import { Accelerometer } from '../accelerometer/accelerometer';
+import { ACCELEROMETER } from '../accelerometer/accelerometer';
+import { ShakeDetector } from '../accelerometer/shake-detector';
+
+/** Accelerometer delta, in m/s^2, that counts as a deliberate shake. */
+const MAJOR_MOVE_THRESHOLD = 3;
+
+/** Quiet period after the last shake before the dice is actually rolled. */
+const SETTLE_DELAY_MS = 800;
+
+const SIDES = 6;
 
 /**
  * Rolls a 1-6 dice when the device is shaken along the X axis.
  *
- * The value only changes on a *major* movement and only once the device has been
- * still for `SETTLE_DELAY_MS`, so the result stays readable while the phone is
- * still being held. Hand tremor stays below `MAJOR_MOVE_THRESHOLD` and is ignored.
+ * The value only changes on a *major* movement and only once the device has been still
+ * for `SETTLE_DELAY_MS`, so the result stays readable while the phone is still being
+ * held. Hand tremor stays below `MAJOR_MOVE_THRESHOLD` and is ignored.
  */
 @Component({
   selector: 'app-home',
@@ -18,56 +27,50 @@ import { Accelerometer } from '../accelerometer/accelerometer';
   imports: [IonHeader, IonToolbar, IonTitle, IonContent],
 })
 export class HomePage implements OnInit, OnDestroy {
-  /** Accelerometer delta, in m/s^2, that counts as a deliberate shake. */
-  private static readonly MAJOR_MOVE_THRESHOLD = 3;
-
-  /** Quiet period after the last shake before the dice is actually rolled. */
-  private static readonly SETTLE_DELAY_MS = 800;
-
-  private static readonly SIDES = 6;
-
   readonly number = signal(0);
 
-  /** Last accepted X reading, used as the baseline for the next shake. */
-  private lastAccelX = 0;
+  /**
+   * Shown when the accelerometer could not be started. Without this the page is
+   * indistinguishable from "the dice just never rolls", which is exactly how a missing
+   * `registerPlugin` call went unnoticed.
+   */
+  readonly sensorError = signal<string | null>(null);
 
-  private rollTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly accelerometer = inject(ACCELEROMETER);
+
+  private detector = new ShakeDetector(
+    MAJOR_MOVE_THRESHOLD,
+    SETTLE_DELAY_MS,
+    () => this.rollDice(),
+  );
+
   private accelListener: PluginListenerHandle | undefined;
 
   async ngOnInit() {
-    // `addListener` rejects where no accelerometer is exposed (an emulator, a desktop
-    // browser). Swallowing that keeps the page usable and stops the rejection from
-    // surfacing as an unhandled promise.
     try {
-      this.accelListener = await Accelerometer.addListener('accel', (event) => {
+      this.accelListener = await this.accelerometer.addListener('accel', (event) => {
         const accel = event.accelerationIncludingGravity ?? event.acceleration;
         if (!accel) return;
 
-        if (Math.abs(accel.x - this.lastAccelX) > HomePage.MAJOR_MOVE_THRESHOLD) {
-          this.lastAccelX = accel.x;
-          this.scheduleRoll();
-        }
+        this.detector.addSample(accel.x);
       });
-    } catch {
-      // No accelerometer on this device; the UI stays at its initial value.
+      this.sensorError.set(null);
+    } catch (err) {
+      // Surface this rather than swallowing it: an unregistered plugin, an emulator, or
+      // a device with no accelerometer all land here, and each needs to be visible.
+      const message = err instanceof Error ? err.message : String(err);
+      this.sensorError.set(message);
+      console.error('[MotionDice] accelerometer unavailable:', message);
     }
   }
 
   ngOnDestroy() {
-    clearTimeout(this.rollTimer);
-    // The original implementation dropped the handle here, which leaked the native
-    // listener every time the page was revisited.
+    this.detector.dispose();
     void this.accelListener?.remove();
     this.accelListener = undefined;
   }
 
-  /** Restarts the settle timer, so only the final shake of a burst decides the roll. */
-  private scheduleRoll() {
-    clearTimeout(this.rollTimer);
-    this.rollTimer = setTimeout(() => this.rollDice(), HomePage.SETTLE_DELAY_MS);
-  }
-
   rollDice() {
-    this.number.set(Math.floor(Math.random() * HomePage.SIDES) + 1);
+    this.number.set(Math.floor(Math.random() * SIDES) + 1);
   }
 }

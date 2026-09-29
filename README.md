@@ -35,6 +35,39 @@ same either way, and swapping back would be a one-line import change.
 `addListener` rejects immediately when no accelerometer exists, and
 `handleOnDestroy` unregisters the sensor so it cannot outlive the WebView.
 
+### The plugin must be registered in `MainActivity`
+
+This is the step that is easy to miss, and its absence fails **silently**:
+
+```java
+public class MainActivity extends BridgeActivity {
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(AccelerometerPlugin.class);   // must precede super.onCreate
+    super.onCreate(savedInstanceState);
+  }
+}
+```
+
+`Bridge.registerAllPlugins()` only auto-registers npm-installed plugins, using the
+`capacitor.plugins.json` that `capacitor sync` writes. A plugin compiled into the app
+module is invisible to that mechanism, so `capacitor.plugins.json` stays `[]` and the
+plugin is never found. Every call then fails with
+`unable to find plugin : Accelerometer`.
+
+`addListener` being a listener method makes this especially easy to miss: it fails
+*after* the page has already rendered, so the app launches, looks healthy, and the dice
+just never responds to a shake. The page now records the reason in a `sensorError` signal
+and shows it in the UI rather than discarding it.
+
+To confirm the registration survived a rebuild, `capacitor.plugins.json` being `[]` is
+**expected** for an app-local plugin — check the compiled bytecode instead:
+
+```bash
+javap -p -c -cp android/app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes \
+  io.ionic.motiondice.MainActivity | grep registerPlugin
+```
+
 ## Prerequisites
 
 | Tool | Version |
