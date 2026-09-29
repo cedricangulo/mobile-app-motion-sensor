@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Motion Dice</string>
+    <string name="title_activity_main">Motion Dice</string>
+    <string name="package_name">io.ionic.motiondice</string>
+    <string name="custom_url_scheme">io.ionic.motiondice</string>
+</resources>
